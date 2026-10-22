@@ -93,8 +93,46 @@ Exa MCP 仓库的 `toolRegistry.ts` 中保留了 8 个已弃用条目（默认�
 
 ## 安装
 
-可通过 Harness 插件管理安装本目录，或从 npm 安装 `dsh-exa-search`。
-使用本地目录安装时，profile 中保存的是链接而非副本；移动或删除源目录会导致插件失效。
+### 方法一：在 DSH 界面安装（推荐）
+
+适用于官方桌面版和 Web 界面。
+
+1. 打开侧边栏的「插件（Plugins）」，点击「添加插件（Add plugin）」。
+2. 在安装窗口的包名输入框中填写 `dsh-exa-search`，点击安装。
+3. 安装完成后点击「立即启用（Enable now）」；若界面提示需要重启，按提示重启 DSH。
+4. 打开「设置 → Exa 搜索」，选择免登录、API Key 或 Exa 账号接入方式。
+
+如 npm 官方源访问较慢，可在安装窗口的 Registry / 软件源选项中选择 npmmirror（国内镜像）。
+
+### 方法二：通过命令行安装到 Web profile
+
+已安装 DSH CLI、且终端可以运行 `dsh` 时，执行：
+
+```sh
+dsh plugin --profile web add dsh-exa-search
+```
+
+安装完成后，重启正在运行的 `dsh web`，刷新浏览器页面，再打开「设置 → Exa 搜索」。若使用自定义 profile，将 `web` 替换为实际使用的 profile 名称。
+
+官方桌面版用户优先使用方法一，以便安装到桌面应用实际使用的 profile。
+
+### 从 GitHub 或本地目录安装
+
+Web profile 也可以直接从本仓库安装：
+
+```sh
+dsh plugin --profile web add github:kiranasuka/dsh-exa-search
+```
+
+本地开发时，可在 DSH 的「添加插件」窗口中填写插件目录的绝对路径。使用本地目录安装时，profile 中保存的是链接而非副本；移动或删除源目录会导致插件失效。
+
+### 首次使用
+
+- **免登录**：无需配置凭据，直接使用基础搜索与网页抓取。
+- **API Key**：在设置页填写 Exa API Key 并保存，也可在启动 DSH 的环境中设置 `EXA_API_KEY`。
+- **Exa 账号**：在设置页发起登录，按浏览器提示完成授权。
+
+可点击「测试连接」检查当前接入方式（消耗一次搜索）。
 
 安装后，`web` 行会被固定到 `exa` provider（见 `cordis.patch.yml`）。这是必要配置：当存在两个可用搜索 provider 时，`ctx.web` 会以 `WEB_PROVIDER_AMBIGUOUS` 拒绝选择，而不会自动猜测。
 
