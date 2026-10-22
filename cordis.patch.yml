@@ -1,0 +1,32 @@
+# Exa search for DeepSeek Harness.
+#
+# Two things happen in this layer:
+#
+# 1. The `web` service is pinned to the Exa providers registered below. Without
+#    this pin, two usable search providers (the in-box DeepSeek one and this
+#    one) make every web_search fail closed with WEB_PROVIDER_AMBIGUOUS — the
+#    seam deliberately refuses to guess. Pinning by id keeps the selection
+#    deterministic no matter which providers other layers add later.
+# 2. The plugin row itself is inserted. It registers the `exa` search/fetch
+#    providers, the Exa tools, and the settings page.
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  config:
+    searchProvider: exa
+    fetchProvider: exa
+
+- insert:
+    - id: exa-search
+      name: 'dsh-exa-search'
+      config:
+        # keyless | apiKey | oauth — the settings page changes the saved mode;
+        # this value is only the first-run default.
+        mode: keyless
+        # Environment variable consulted when no key is saved in the vault.
+        apiKeyEnv: EXA_API_KEY
+        # Default number of sources for web_search and exa_search.
+        numResults: 8
+        # Search type for the REST transport: auto | fast | deep.
+        searchType: auto
+        # Per-page character cap for fetches and contents extraction.
+        maxCharacters: 12000
