@@ -91,9 +91,46 @@ The same table appears at the bottom of the settings page.
 
 ## Installation
 
-Install this directory through the Harness plugin manager, or install `dsh-exa-search` from npm.
+### Option 1: Install through the DSH interface (recommended)
 
-A local directory install stores a link rather than a copy in the profile; moving or deleting the source directory disables the plugin.
+Available in the official Desktop app and Web UI.
+
+1. Open **Plugins** in the sidebar and click **Add plugin**.
+2. Enter `dsh-exa-search` in the package field and start the installation.
+3. When installation completes, click **Enable now**. Restart DSH if the interface asks you to.
+4. Open **Settings → Exa Search** and choose keyless, API key or Exa account mode.
+
+If the official npm registry is slow to reach, select **npmmirror** (the mainland China mirror) from the installation dialog's **Registry** options.
+
+### Option 2: Install into the Web profile from the command line
+
+With the DSH CLI installed and `dsh` available in your terminal, run:
+
+```sh
+dsh plugin --profile web add dsh-exa-search
+```
+
+After installation, restart the running `dsh web` process, refresh the browser and open **Settings → Exa Search**. For a custom profile, replace `web` with the profile you use.
+
+For the official Desktop app, prefer Option 1 so the plugin is installed into the profile the app uses.
+
+### Install from GitHub or a local directory
+
+To install this repository directly into the Web profile:
+
+```sh
+dsh plugin --profile web add github:kiranasuka/dsh-exa-search
+```
+
+For local development, enter the plugin directory's absolute path in DSH's **Add plugin** dialog. A local directory install stores a link rather than a copy in the profile; moving or deleting the source directory disables the plugin.
+
+### First use
+
+- **Keyless**: no credentials required; start with basic search and page fetching.
+- **API key**: save an Exa API key on the settings page, or set `EXA_API_KEY` in the environment used to launch DSH.
+- **Exa account**: start sign-in from the settings page and complete authorization in your browser.
+
+Use **Test connection** to check the active mode (one search is consumed).
 
 Installation pins the `web` row to the `exa` provider (see `cordis.patch.yml`). The pin is required: with two usable search providers, `ctx.web` fails closed with `WEB_PROVIDER_AMBIGUOUS` rather than choosing one.
 
