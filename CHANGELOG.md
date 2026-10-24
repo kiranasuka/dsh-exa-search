@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2
+
+- The settings page checks the npm registry for a newer release at startup and shows an update card when one exists; the same check is available from a **Check for updates** button.
+- **Update** uninstalls and reinstalls the newest release through the Harness plugin manager and asks for a restart; a local linked install is refused so its source directory is never removed. **Skip this version** hides that release until a newer one appears.
+- New `updateCheck` config key (default `true`) turns the startup check off.
+- New 3D magnifier artwork (`icon.png`); the same image is the package icon and the settings-page header mark.
+
 ## 1.0.1
 
 First public release: Exa-backed `web_search` / `web_fetch`, ten additional tools, and three access modes.

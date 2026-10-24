@@ -93,46 +93,8 @@ Exa MCP 仓库的 `toolRegistry.ts` 中保留了 8 个已弃用条目（默认�
 
 ## 安装
 
-### 方法一：在 DSH 界面安装（推荐）
-
-适用于官方桌面版和 Web 界面。
-
-1. 打开侧边栏的「插件（Plugins）」，点击「添加插件（Add plugin）」。
-2. 在安装窗口的包名输入框中填写 `dsh-exa-search`，点击安装。
-3. 安装完成后点击「立即启用（Enable now）」；若界面提示需要重启，按提示重启 DSH。
-4. 打开「设置 → Exa 搜索」，选择免登录、API Key 或 Exa 账号接入方式。
-
-如 npm 官方源访问较慢，可在安装窗口的 Registry / 软件源选项中选择 npmmirror（国内镜像）。
-
-### 方法二：通过命令行安装到 Web profile
-
-已安装 DSH CLI、且终端可以运行 `dsh` 时，执行：
-
-```sh
-dsh plugin --profile web add dsh-exa-search
-```
-
-安装完成后，重启正在运行的 `dsh web`，刷新浏览器页面，再打开「设置 → Exa 搜索」。若使用自定义 profile，将 `web` 替换为实际使用的 profile 名称。
-
-官方桌面版用户优先使用方法一，以便安装到桌面应用实际使用的 profile。
-
-### 从 GitHub 或本地目录安装
-
-Web profile 也可以直接从本仓库安装：
-
-```sh
-dsh plugin --profile web add github:kiranasuka/dsh-exa-search
-```
-
-本地开发时，可在 DSH 的「添加插件」窗口中填写插件目录的绝对路径。使用本地目录安装时，profile 中保存的是链接而非副本；移动或删除源目录会导致插件失效。
-
-### 首次使用
-
-- **免登录**：无需配置凭据，直接使用基础搜索与网页抓取。
-- **API Key**：在设置页填写 Exa API Key 并保存，也可在启动 DSH 的环境中设置 `EXA_API_KEY`。
-- **Exa 账号**：在设置页发起登录，按浏览器提示完成授权。
-
-可点击「测试连接」检查当前接入方式（消耗一次搜索）。
+可通过 Harness 插件管理安装本目录，或从 npm 安装 `dsh-exa-search`。
+使用本地目录安装时，profile 中保存的是链接而非副本；移动或删除源目录会导致插件失效。
 
 安装后，`web` 行会被固定到 `exa` provider（见 `cordis.patch.yml`）。这是必要配置：当存在两个可用搜索 provider 时，`ctx.web` 会以 `WEB_PROVIDER_AMBIGUOUS` 拒绝选择，而不会自动猜测。
 
@@ -150,8 +112,11 @@ dsh plugin --profile web add github:kiranasuka/dsh-exa-search
 | `locale` | `auto` | 消息语言：`auto` 跟随系统，或强制 `en` / `zh`。 |
 | `mcpTools` | `null` | 覆盖 MCP 的 `tools` 列表（数组或逗号分隔字符串）。 |
 | `toolGroups` | `null` | 分组开关的初始值，例如 `{ "answer": false, "webset": false }`；设置页的改动存入 state 并覆盖它。 |
+| `updateCheck` | `true` | 启动后自动向 npm 查询一次新版本；设为 `false` 可关闭，设置页的手动检查不受影响。 |
 
 设置页中每个分组右侧均有开关；关闭后，该分组下的 `exa_*` 工具会立即从模型工具表中移除，`web_search` / `web_fetch` 的 Exa 改道不受影响。设置页顶部的「测试连接」按钮会使用当前接入方式执行一次最小搜索，并返回耗时与示例结果（消耗一次搜索）。
+
+插件在启动约 5 秒后查询 npm 上的最新版本（结果缓存 6 小时），发现新版本时设置页顶部会出现更新卡片：「更新」先卸载再安装该版本，完成后需重启 Harness；本地目录安装（`link:` / `file:`）不参与原地更新，需重新安装。「忽略此版本」只隐藏当前这个版本，出现更新版本时会再次提示。顶部的「检查更新」按钮可随时手动重查。
 
 ## 数据与凭据
 
@@ -165,7 +130,10 @@ dsh plugin --profile web add github:kiranasuka/dsh-exa-search
 
 - `GET /exa-plugin/state` — 当前方式、凭据状态、上游工具表、工具矩阵与各方式计数；
 - `GET /exa-plugin/diagnostics` — 脱敏诊断快照，用于问题反馈；
+- `GET /exa-plugin/icon.png` — 插件图标，设置页标题与插件清单共用同一文件；
+- `GET /exa-plugin/update` — 查询 npm 上的最新版本，`?force=1` 跳过缓存；
 - `POST /exa-plugin/mode` / `api-key` / `login` / `logout` / `tools` / `test` — 变更操作，拒绝跨源请求；
+- `POST /exa-plugin/update` / `update/dismiss` — 安装最新版本 / 忽略该版本；
 - `GET /exa-plugin/oauth/callback` — OAuth 回调。
 
 ## 未覆盖范围

@@ -29,7 +29,10 @@ import { createHash, randomBytes } from 'node:crypto'
 // so a version baked in at load time can go stale after a bump.
 function packageInfo() {
   try {
-    const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+    // Strip a BOM: a package.json saved by Windows tooling may carry one, and
+    // JSON.parse rejects it.
+    const raw = readFileSync(new URL('./package.json', import.meta.url), 'utf8').replace(/^\uFEFF/, '')
+    const pkg = JSON.parse(raw)
     return { name: typeof pkg.name === 'string' ? pkg.name : 'dsh-exa-search', version: String(pkg.version || 'unknown') }
   } catch {
     return { name: 'dsh-exa-search', version: 'unknown' }
@@ -107,6 +110,47 @@ function clampInt(value, min, max, fallback) {
   const numeric = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10)
   if (!Number.isFinite(numeric)) return fallback
   return Math.min(max, Math.max(min, Math.trunc(numeric)))
+}
+
+/**
+ * Compare two semver strings, returning -1, 0 or 1. A release outranks its
+ * prereleases; unparsable input compares equal so a bad registry response can
+ * never trigger an update prompt.
+ */
+export function compareVersions(a, b) {
+  const parse = (value) => {
+    const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(String(value ?? '').trim())
+    if (!match) return null
+    return {
+      core: [Number(match[1]), Number(match[2]), Number(match[3])],
+      pre: match[4] ? match[4].split('.') : [],
+    }
+  }
+  const left = parse(a)
+  const right = parse(b)
+  if (!left || !right) return 0
+  for (let index = 0; index < 3; index += 1) {
+    if (left.core[index] !== right.core[index]) return left.core[index] < right.core[index] ? -1 : 1
+  }
+  if (!left.pre.length && !right.pre.length) return 0
+  if (!left.pre.length) return 1
+  if (!right.pre.length) return -1
+  const length = Math.max(left.pre.length, right.pre.length)
+  for (let index = 0; index < length; index += 1) {
+    const one = left.pre[index]
+    const other = right.pre[index]
+    if (one === undefined) return -1
+    if (other === undefined) return 1
+    const oneNumeric = /^\d+$/.test(one)
+    const otherNumeric = /^\d+$/.test(other)
+    if (oneNumeric && otherNumeric) {
+      if (Number(one) !== Number(other)) return Number(one) < Number(other) ? -1 : 1
+      continue
+    }
+    if (oneNumeric !== otherNumeric) return oneNumeric ? -1 : 1
+    if (one !== other) return one < other ? -1 : 1
+  }
+  return 0
 }
 
 function hostnameOf(url) {
@@ -207,6 +251,10 @@ const MESSAGES = {
     modeNeedsKey: 'No API key is saved yet; fill one in before switching.',
     modeNeedsSignIn: 'No Exa account is signed in; sign in before switching.',
     invalidKey: 'Exa rejected this API key (401). Copy a valid key from dashboard.exa.ai/api-keys.',
+    updateUnavailable: 'Automatic updates need the Harness plugin manager, which is not available in this environment.',
+    updateNone: 'This is already the latest version.',
+    updateBusy: 'An update is already running.',
+    updateLinked: 'This copy is installed from a local directory, so it is not updated in place. Reinstall it from the Harness plugin manager instead.',
   },
   zh: {
     aborted: '请求已取消。',
@@ -252,6 +300,10 @@ const MESSAGES = {
     modeNeedsKey: '还没有保存 API Key，先填写再切换。',
     modeNeedsSignIn: '还没有登录 Exa 账号，先完成登录再切换。',
     invalidKey: '这个 API Key 被 Exa 拒绝（401）。请到 dashboard.exa.ai/api-keys 复制有效 Key。',
+    updateUnavailable: '自动更新需要 Harness 插件管理器；当前环境不可用。',
+    updateNone: '已经是最新版本。',
+    updateBusy: '已有更新正在进行。',
+    updateLinked: '当前是本地目录安装，不做原地更新；请在 Harness 的插件管理中重新安装。',
   },
 }
 
@@ -468,6 +520,7 @@ export function apply(ctx, config = {}) {
     mcpTools: null,
     toolGroups: null,
     locale: 'auto',
+    updateCheck: true,
     apiBase: DEFAULT_API_BASE,
     mcpUrl: DEFAULT_MCP_URL,
     authOrigin: DEFAULT_AUTH_ORIGIN,
@@ -489,6 +542,7 @@ export function apply(ctx, config = {}) {
     keyStatus: 'unknown',
     entitlements: { batch: null, webset: null },
     toolGroups: { ...DEFAULT_TOOL_GROUPS },
+    dismissedUpdate: '',
   }
 
   // Config seeds the defaults; a saved state or the settings page overrides them.
@@ -504,6 +558,19 @@ export function apply(ctx, config = {}) {
   let disposed = false
   let mcpToolset = null
   let probeSeq = 0
+
+  // ---------------------------------------------------------- update checking
+  const UPDATE_PACKAGE = 'dsh-exa-search'
+  const UPDATE_TTL = 6 * 60 * 60 * 1000
+  const UPDATE_TIMEOUT = 10_000
+  const updateState = {
+    checkedAt: 0,
+    latest: '',
+    error: '',
+    source: '',
+    installing: false,
+    inFlight: null,
+  }
 
   // The credential service may activate after this plugin. Resolve it through
   // an injection instead of freezing an undefined reference at apply time —
@@ -582,6 +649,7 @@ export function apply(ctx, config = {}) {
           if (typeof saved.toolGroups[group] === 'boolean') state.toolGroups[group] = saved.toolGroups[group]
         }
       }
+      if (typeof saved.dismissedUpdate === 'string' && saved.dismissedUpdate) state.dismissedUpdate = saved.dismissedUpdate
     } catch (error) {
       if (error && error.code !== 'ENOENT') state.upstream = 'state-unreadable'
     }
@@ -594,6 +662,7 @@ export function apply(ctx, config = {}) {
       clientId: state.clientId,
       clientOrigin: state.clientOrigin,
       toolGroups: { ...state.toolGroups },
+      dismissedUpdate: state.dismissedUpdate || '',
     }
     if (!vaultHealthy) {
       payload.apiKey = state.apiKey
@@ -1563,6 +1632,138 @@ export function apply(ctx, config = {}) {
     }
   }
 
+  // ---------------------------------------------------------- update checking
+
+  /**
+   * Registry the plugin manager would ask first, so an update follows the same
+   * mirror as an install. `null` means "pnpm's own configuration"; the resolved
+   * value is the effective one in that case.
+   */
+  async function updateRegistryBase() {
+    const manager = ctx.get('pluginManager')
+    const fallback = 'https://registry.npmjs.org'
+    if (!manager || typeof manager.registries !== 'function') return fallback
+    try {
+      const registries = await manager.registries()
+      const explicit = registries && typeof registries.registry === 'string' ? registries.registry : ''
+      const resolved = registries && typeof registries.resolved === 'string' ? registries.resolved : ''
+      const chosen = explicit || resolved
+      return chosen ? chosen.replace(/\/+$/, '') : fallback
+    } catch {
+      return fallback
+    }
+  }
+
+  /** Where this copy came from: `link:` / `file:` for a local directory. */
+  async function updateInstallSource() {
+    const manager = ctx.get('pluginManager')
+    if (!manager || typeof manager.listBundles !== 'function') return ''
+    try {
+      const bundles = await manager.listBundles()
+      const mine = Array.isArray(bundles) ? bundles.find((bundle) => bundle && bundle.name === UPDATE_PACKAGE) : null
+      return mine && typeof mine.source === 'string' ? mine.source : ''
+    } catch {
+      return ''
+    }
+  }
+
+  function updateSnapshot() {
+    const info = packageInfo()
+    const latest = updateState.latest
+    const available = Boolean(latest) && compareVersions(latest, info.version) > 0
+    const manager = ctx.get('pluginManager')
+    return {
+      current: info.version,
+      latest,
+      available,
+      checkedAt: updateState.checkedAt,
+      error: updateState.error,
+      dismissed: Boolean(latest) && state.dismissedUpdate === latest,
+      source: updateState.source,
+      linked: /^(link|file):/i.test(updateState.source),
+      canInstall: Boolean(manager && typeof manager.installBundle === 'function' && typeof manager.removeBundle === 'function'),
+      installing: updateState.installing,
+    }
+  }
+
+  async function checkForUpdate(force) {
+    const now = Date.now()
+    if (!force && updateState.checkedAt && now - updateState.checkedAt < UPDATE_TTL) return updateSnapshot()
+    if (updateState.inFlight) return updateState.inFlight
+    updateState.inFlight = (async () => {
+      try {
+        updateState.source = await updateInstallSource()
+        const base = await updateRegistryBase()
+        const name = UPDATE_PACKAGE.startsWith('@') ? UPDATE_PACKAGE.replace('/', '%2F') : encodeURIComponent(UPDATE_PACKAGE)
+        const response = await fetch(`${base}/${name}/latest`, {
+          headers: { accept: 'application/json', 'user-agent': `${UPDATE_PACKAGE}/${packageInfo().version}` },
+          signal: AbortSignal.timeout(UPDATE_TIMEOUT),
+        })
+        if (!response.ok) throw new Error(`registry responded ${response.status}`)
+        const payload = await response.json()
+        const latest = payload && typeof payload.version === 'string' ? payload.version.trim() : ''
+        if (!latest) throw new Error('registry response carries no version')
+        updateState.latest = latest
+        updateState.error = ''
+      } catch (error) {
+        updateState.error = messageOf(error)
+      } finally {
+        updateState.checkedAt = Date.now()
+        updateState.inFlight = null
+      }
+      return updateSnapshot()
+    })()
+    return updateState.inFlight
+  }
+
+  /**
+   * Start an in-place upgrade. The manager has no upgrade call, so it removes
+   * the installed dependency and installs the release, the same two steps the
+   * CLI performs. The work starts after the response so the page can show the
+   * progress before this plugin unloads.
+   */
+  function startUpdate(latest) {
+    const manager = ctx.get('pluginManager')
+    if (!manager || typeof manager.installBundle !== 'function' || typeof manager.removeBundle !== 'function') {
+      throw exaError('EXA_UPDATE_UNAVAILABLE', m('updateUnavailable'))
+    }
+    // Removing a linked dependency can remove the directory it points at, so a
+    // local development copy is never updated in place.
+    if (/^(link|file):/i.test(updateState.source)) {
+      throw exaError('EXA_UPDATE_LINKED', m('updateLinked'))
+    }
+    if (updateState.installing) throw exaError('EXA_UPDATE_BUSY', m('updateBusy'))
+    updateState.installing = true
+    const spec = `${UPDATE_PACKAGE}@${latest}`
+    const timer = setTimeout(async () => {
+      try {
+        await manager.removeBundle(UPDATE_PACKAGE)
+      } catch {
+        // A first install has nothing to remove.
+      }
+      try {
+        await manager.installBundle(spec, { enabled: true })
+      } catch {
+        // Once this plugin is unloaded nothing can report from here; the page
+        // polls and falls back to its manual instructions.
+      } finally {
+        updateState.installing = false
+      }
+    }, 400)
+    if (typeof timer.unref === 'function') timer.unref()
+    return { accepted: true, version: latest }
+  }
+
+  /** One check shortly after startup; failures stay silent until asked again. */
+  function scheduleUpdateCheck() {
+    if (cfg.updateCheck === false) return
+    const timer = setTimeout(() => {
+      if (!disposed) void checkForUpdate(false)
+    }, 5000)
+    if (typeof timer.unref === 'function') timer.unref()
+    ctx.effect(() => () => clearTimeout(timer))
+  }
+
   async function statePayload() {
     const envKey = apiKeyFromEnv()
     const signedIn = Boolean(state.oauth && state.oauth.accessToken)
@@ -1625,6 +1826,7 @@ export function apply(ctx, config = {}) {
         return acc
       }, {}),
       endpoints: { api: cfg.apiBase, mcp: cfg.mcpUrl, auth: cfg.authOrigin },
+      update: updateSnapshot(),
     }
   }
 
@@ -2292,6 +2494,25 @@ export function apply(ctx, config = {}) {
     res.end(html)
   }
 
+  // The settings page shows the bundled icon; the same file backs the package
+  // manifest icon, so it is read once and kept in memory.
+  const iconFile = new URL('./icon.png', import.meta.url)
+  let iconBytes = null
+  function sendIcon(res) {
+    try {
+      if (!iconBytes) iconBytes = readFileSync(iconFile)
+      res.writeHead(200, {
+        'content-type': 'image/png',
+        'cache-control': 'public, max-age=3600',
+        'content-length': iconBytes.length,
+      })
+      res.end(iconBytes)
+    } catch {
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+      res.end('icon not found')
+    }
+  }
+
   const MAX_BODY_BYTES = 256 * 1024
 
   async function readBody(req) {
@@ -2449,6 +2670,14 @@ export function apply(ctx, config = {}) {
         return sendJson(res, 200, await diagnosticsPayload())
       }
 
+      if (req.method === 'GET' && pathname === `${ROUTE_PREFIX}/icon.png`) {
+        return sendIcon(res)
+      }
+
+      if (req.method === 'GET' && pathname === `${ROUTE_PREFIX}/update`) {
+        return sendJson(res, 200, await checkForUpdate(url.searchParams.get('force') === '1'))
+      }
+
       if (req.method === 'GET' && pathname === `${ROUTE_PREFIX}/oauth/callback`) {
         const failure = url.searchParams.get('error')
         if (failure) {
@@ -2520,6 +2749,32 @@ export function apply(ctx, config = {}) {
           await saveState()
           syncTools()
           return sendJson(res, 200, await statePayload())
+        }
+
+        if (pathname === `${ROUTE_PREFIX}/update`) {
+          try {
+            const snapshot = await checkForUpdate(true)
+            if (!snapshot.available) {
+              return sendJson(res, 409, { ...snapshot, error: m('updateNone') })
+            }
+            return sendJson(res, 202, { ...snapshot, ...startUpdate(snapshot.latest) })
+          } catch (error) {
+            const code = error && error.code
+            const status =
+              code === 'EXA_UPDATE_UNAVAILABLE'
+                ? 501
+                : code === 'EXA_UPDATE_BUSY' || code === 'EXA_UPDATE_LINKED'
+                  ? 409
+                  : 500
+            return sendJson(res, status, { ...(await updateSnapshot()), error: messageOf(error) })
+          }
+        }
+
+        if (pathname === `${ROUTE_PREFIX}/update/dismiss`) {
+          const version = String(body.version || '').trim()
+          state.dismissedUpdate = version
+          await saveState()
+          return sendJson(res, 200, await updateSnapshot())
         }
 
         if (pathname === `${ROUTE_PREFIX}/test`) {
@@ -2631,6 +2886,7 @@ export function apply(ctx, config = {}) {
       await loadSecrets()
       await probeUpstream()
       syncTools()
+      scheduleUpdateCheck()
     } catch {
       // Bootstrap failures leave the providers registering lazily on first use.
     }

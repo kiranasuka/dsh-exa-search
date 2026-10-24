@@ -30,3 +30,6 @@
         searchType: auto
         # Per-page character cap for fetches and contents extraction.
         maxCharacters: 12000
+        # Check the npm registry for a newer release at startup; the settings
+        # page can always re-check and install manually.
+        updateCheck: true

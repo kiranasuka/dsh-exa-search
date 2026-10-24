@@ -91,46 +91,9 @@ The same table appears at the bottom of the settings page.
 
 ## Installation
 
-### Option 1: Install through the DSH interface (recommended)
+Install this directory through the Harness plugin manager, or install `dsh-exa-search` from npm.
 
-Available in the official Desktop app and Web UI.
-
-1. Open **Plugins** in the sidebar and click **Add plugin**.
-2. Enter `dsh-exa-search` in the package field and start the installation.
-3. When installation completes, click **Enable now**. Restart DSH if the interface asks you to.
-4. Open **Settings → Exa Search** and choose keyless, API key or Exa account mode.
-
-If the official npm registry is slow to reach, select **npmmirror** (the mainland China mirror) from the installation dialog's **Registry** options.
-
-### Option 2: Install into the Web profile from the command line
-
-With the DSH CLI installed and `dsh` available in your terminal, run:
-
-```sh
-dsh plugin --profile web add dsh-exa-search
-```
-
-After installation, restart the running `dsh web` process, refresh the browser and open **Settings → Exa Search**. For a custom profile, replace `web` with the profile you use.
-
-For the official Desktop app, prefer Option 1 so the plugin is installed into the profile the app uses.
-
-### Install from GitHub or a local directory
-
-To install this repository directly into the Web profile:
-
-```sh
-dsh plugin --profile web add github:kiranasuka/dsh-exa-search
-```
-
-For local development, enter the plugin directory's absolute path in DSH's **Add plugin** dialog. A local directory install stores a link rather than a copy in the profile; moving or deleting the source directory disables the plugin.
-
-### First use
-
-- **Keyless**: no credentials required; start with basic search and page fetching.
-- **API key**: save an Exa API key on the settings page, or set `EXA_API_KEY` in the environment used to launch DSH.
-- **Exa account**: start sign-in from the settings page and complete authorization in your browser.
-
-Use **Test connection** to check the active mode (one search is consumed).
+A local directory install stores a link rather than a copy in the profile; moving or deleting the source directory disables the plugin.
 
 Installation pins the `web` row to the `exa` provider (see `cordis.patch.yml`). The pin is required: with two usable search providers, `ctx.web` fails closed with `WEB_PROVIDER_AMBIGUOUS` rather than choosing one.
 
@@ -146,8 +109,11 @@ Installation pins the `web` row to the `exa` provider (see `cordis.patch.yml`). 
 | `locale` | `auto` | Message language: `auto` follows the system, or `en` / `zh`. |
 | `mcpTools` | `null` | Overrides the MCP `tools` list (array or comma-separated string). |
 | `toolGroups` | `null` | Initial per-group switches, e.g. `{ "answer": false, "webset": false }`. Changes made in Settings are stored in the state file and override this value. |
+| `updateCheck` | `true` | Asks npm for a newer release shortly after startup; set to `false` to disable it without affecting the manual check. |
 
 Each group on the settings page has a switch. Disabling a group removes its `exa_*` tools from the model's tool list immediately; the `web_search` / `web_fetch` redirection is unaffected. The **Test connection** button at the top performs one minimal search with the active mode and reports latency and a sample result (one search is consumed).
+
+About five seconds after startup the plugin queries npm for the latest release and caches the answer for six hours. When a newer version exists, the settings page shows an update card: **Update** uninstalls and reinstalls that release, after which Harness must restart (a local `link:`/`file:` install is not updated in place and must be reinstalled), while **Skip this version** hides it until a newer release appears. The **Check for updates** button reruns the check at any time.
 
 ## Data and credentials
 
@@ -161,7 +127,10 @@ The settings page uses same-origin routes instead of generated remotes:
 
 - `GET /exa-plugin/state` — active mode, credential status, upstream tool list, tool matrix and per-mode counts;
 - `GET /exa-plugin/diagnostics` — a redacted snapshot for issue reports;
+- `GET /exa-plugin/icon.png` — the plugin icon, shared by the settings header and the plugin manifest;
+- `GET /exa-plugin/update` — the latest release on npm; `?force=1` skips the cache;
 - `POST /exa-plugin/mode` / `api-key` / `login` / `logout` / `tools` / `test` — mutations; cross-origin requests are rejected;
+- `POST /exa-plugin/update` / `update/dismiss` — install the latest release / hide that release;
 - `GET /exa-plugin/oauth/callback` — OAuth callback.
 
 ## Scope

@@ -99,9 +99,21 @@ window.__ModuleLoader__.load({
         testHint: '会消耗一次搜索',
         testOk: '连接正常',
         testFail: '连接失败',
-        diagnosticsAction: '复制诊断',
-        diagnosticsCopied: '诊断信息已复制',
-        diagnosticsFailed: '复制失败',
+        updateCheckAction: '检查更新',
+        updateChecking: '检查中…',
+        updateAvailable: '有新版本',
+        updateAction: '更新',
+        updateApplying: '正在更新…',
+        updateDismiss: '忽略此版本',
+        updateHint: '更新会先卸载再安装发布版，完成后需重启 Harness；期间设置页会短暂不可用。',
+        updateLinkedHint: '本地目录安装不参与原地更新，请重新安装或重新链接。',
+        updateLatest: '已是最新版本',
+        updateCheckFailed: '检查更新失败',
+        updateFailed: '更新失败',
+        updateDone: '已更新，重启 Harness 后生效',
+        updateDoneApplied: '已更新并生效',
+        updateNone: '没有可用更新',
+        updateManualHint: '若版本未变化，请在 Harness 的插件管理中重新安装 dsh-exa-search。',
         errorPrefix: '操作失败',
         retry: '重试',
       },
@@ -195,9 +207,21 @@ window.__ModuleLoader__.load({
         testHint: 'spends one search',
         testOk: 'Connected',
         testFail: 'Failed',
-        diagnosticsAction: 'Copy diagnostics',
-        diagnosticsCopied: 'Diagnostics copied',
-        diagnosticsFailed: 'Copy failed',
+        updateCheckAction: 'Check for updates',
+        updateChecking: 'Checking…',
+        updateAvailable: 'Update available',
+        updateAction: 'Update',
+        updateApplying: 'Updating…',
+        updateDismiss: 'Skip this version',
+        updateHint: 'The update uninstalls and reinstalls the published release; the settings page is briefly unavailable and Harness must restart afterwards.',
+        updateLinkedHint: 'Local directory installs are not updated in place; reinstall or relink instead.',
+        updateLatest: 'Up to date',
+        updateCheckFailed: 'Update check failed',
+        updateFailed: 'Update failed',
+        updateDone: 'Updated; restart Harness to apply',
+        updateDoneApplied: 'Updated and applied',
+        updateNone: 'No update available',
+        updateManualHint: 'If the version does not change, reinstall dsh-exa-search from the Harness plugin manager.',
         errorPrefix: 'Action failed',
         retry: 'Retry',
       },
@@ -208,8 +232,9 @@ window.__ModuleLoader__.load({
   color:var(--dsw-alias-label-primary); font-size:14px; line-height:1.5; }
 .exa-panel * { box-sizing:border-box; }
 .exa-head { display:flex; align-items:flex-start; gap:14px; }
-.exa-mark { width:42px; height:42px; border-radius:13px; flex:none; display:grid; place-items:center;
+.exa-mark { width:42px; height:42px; border-radius:13px; flex:none; overflow:hidden;
   background:var(--dsw-alias-bg-layer-2); border:1px solid var(--dsw-alias-border-l1); }
+.exa-mark img { width:100%; height:100%; object-fit:cover; display:block; }
 .exa-head-text { min-width:0; }
 .exa-panel h2 { margin:0; font-size:19px; font-weight:600; letter-spacing:-0.01em; }
 .exa-sub { margin:5px 0 0; color:var(--dsw-alias-label-secondary); font-size:13px; }
@@ -217,9 +242,11 @@ window.__ModuleLoader__.load({
   border:1px solid var(--dsw-alias-border-l1); color:var(--dsw-alias-label-secondary); white-space:nowrap; }
 .exa-chip.on { color:var(--dsw-alias-brand-primary); border-color:var(--dsw-alias-brand-primary); }
 .exa-panel h3 { margin:0 0 10px; font-size:13px; font-weight:600; color:var(--dsw-alias-label-secondary); }
-.exa-banner { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; border-radius:10px;
+.exa-banner { display:flex; flex-direction:column; gap:8px; padding:10px 12px; border-radius:10px;
   background:var(--dsw-alias-bg-layer-1); border:1px solid var(--dsw-alias-border-l1);
   font-size:12.5px; color:var(--dsw-alias-label-secondary); }
+.exa-banner-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.exa-banner-tools { color:var(--dsw-alias-label-secondary); }
 .exa-pipe { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:6px;
   background:var(--dsw-alias-bg-base); border:1px solid var(--dsw-alias-border-l1);
   font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color:var(--dsw-alias-label-primary); }
@@ -243,6 +270,10 @@ window.__ModuleLoader__.load({
   font-variant-numeric:tabular-nums; align-self:center; }
 .exa-card { border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1);
   border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
+.exa-update { border-color:var(--dsw-alias-brand-primary); background:var(--dsw-alias-bg-layer-2); }
+.exa-update-label { font-size:13px; font-weight:600; }
+.exa-update-version { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px;
+  color:var(--dsw-alias-label-secondary); }
 .exa-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .exa-label { font-size:12px; color:var(--dsw-alias-label-secondary); }
 .exa-input { flex:1 1 260px; min-width:0; height:34px; padding:0 10px; border-radius:8px;
@@ -332,29 +363,6 @@ window.__ModuleLoader__.load({
       return (key) => (STRINGS[id] && STRINGS[id][key]) || STRINGS.en[key] || key
     }
 
-    function Mark() {
-      return h(
-        'svg',
-        { viewBox: '0 0 64 64', width: 30, height: 30, 'aria-hidden': true },
-        h(
-          'defs',
-          null,
-          h(
-            'linearGradient',
-            { id: 'exaMarkGradient', x1: '0', y1: '0', x2: '1', y2: '1' },
-            h('stop', { offset: '0', stopColor: '#1d4ed8' }),
-            h('stop', { offset: '1', stopColor: '#06b6d4' }),
-          ),
-        ),
-        h('rect', { x: 3, y: 3, width: 58, height: 58, rx: 17, fill: 'url(#exaMarkGradient)' }),
-        h('circle', { cx: 27, cy: 27, r: 13, fill: 'none', stroke: '#fff', strokeWidth: 4.5 }),
-        h('line', { x1: 37, y1: 37, x2: 50, y2: 50, stroke: '#fff', strokeWidth: 6, strokeLinecap: 'round' }),
-        h('circle', { cx: 22, cy: 23, r: 2.6, fill: '#fff' }),
-        h('circle', { cx: 32, cy: 21, r: 2.6, fill: '#fff' }),
-        h('circle', { cx: 28.5, cy: 32, r: 2.6, fill: '#fff' }),
-      )
-    }
-
     function Cell({ value, current }) {
       const className = ['num', current ? 'current' : ''].filter(Boolean).join(' ')
       if (value === true) return h('td', { className }, h('span', { className: 'exa-yes' }, '✓'))
@@ -399,9 +407,9 @@ window.__ModuleLoader__.load({
       const [loginUrl, setLoginUrl] = React.useState('')
       const [testing, setTesting] = React.useState(false)
       const [testResult, setTestResult] = React.useState(null)
-      const [diagNotice, setDiagNotice] = React.useState('')
+      const [updateBusy, setUpdateBusy] = React.useState('')
+      const [updateNotice, setUpdateNotice] = React.useState('')
       const pollTimer = React.useRef(null)
-      const diagTimer = React.useRef(null)
       const loginWindow = React.useRef(null)
       const closedTicks = React.useRef(0)
       const mounted = React.useRef(true)
@@ -519,7 +527,6 @@ window.__ModuleLoader__.load({
           mounted.current = false
           window.removeEventListener('message', onMessage)
           stopPolling()
-          if (diagTimer.current) window.clearTimeout(diagTimer.current)
           if (loginWindow.current && !loginWindow.current.closed) {
             try {
               loginWindow.current.close()
@@ -648,22 +655,64 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const copyDiagnostics = async () => {
-        setDiagNotice('')
+      const checkUpdate = async () => {        setUpdateBusy('check')
+        setUpdateNotice('')
         try {
-          const data = await request('/exa-plugin/diagnostics')
-          if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
-            throw new Error('clipboard unavailable')
-          }
-          await navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+          const snapshot = await request('/exa-plugin/update?force=1')
+          await refresh()
           if (!mounted.current) return
-          setDiagNotice(t('diagnosticsCopied'))
-          if (diagTimer.current) window.clearTimeout(diagTimer.current)
-          diagTimer.current = window.setTimeout(() => {
-            if (mounted.current) setDiagNotice('')
-          }, 4000)
+          if (snapshot && snapshot.error) setUpdateNotice(`${t('updateCheckFailed')}: ${snapshot.error}`)
+          else if (snapshot && snapshot.available) setUpdateNotice('')
+          else setUpdateNotice(t('updateLatest'))
         } catch (err) {
-          if (mounted.current) setDiagNotice(`${t('diagnosticsFailed')}: ${String((err && err.message) || err)}`)
+          if (mounted.current) setUpdateNotice(`${t('updateCheckFailed')}: ${String((err && err.message) || err)}`)
+        } finally {
+          if (mounted.current) setUpdateBusy('')
+        }
+      }
+
+      const applyUpdate = async () => {
+        const latest = state && state.update ? state.update.latest : ''
+        setUpdateBusy('apply')
+        setUpdateNotice(t('updateApplying'))
+        try {
+          await request('/exa-plugin/update', {})
+        } catch {
+          // The uninstall step can take the route down with it; the poll below
+          // still decides whether the new version came up.
+        }
+        const started = Date.now()
+        let applied = false
+        while (mounted.current && Date.now() - started < 30000) {
+          await new Promise((resolve) => window.setTimeout(resolve, 2000))
+          try {
+            const diag = await request('/exa-plugin/diagnostics')
+            if (diag && diag.plugin && diag.plugin.version === latest) {
+              applied = true
+              break
+            }
+          } catch {
+            // Still unloading or reloading.
+          }
+        }
+        if (!mounted.current) return
+        setUpdateBusy('')
+        setUpdateNotice(applied ? t('updateDoneApplied') : `${t('updateDone')} ${t('updateManualHint')}`)
+        try {
+          await refresh()
+        } catch {
+          // The page can be reloaded by hand if the plugin restarted.
+        }
+      }
+
+      const dismissUpdate = async () => {
+        const version = state && state.update ? state.update.latest : ''
+        if (!version) return
+        try {
+          await request('/exa-plugin/update/dismiss', { version })
+          await refresh()
+        } catch (err) {
+          if (mounted.current) setUpdateNotice(`${t('updateFailed')}: ${String((err && err.message) || err)}`)
         }
       }
 
@@ -705,7 +754,7 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'exa-head' },
-          h('div', { className: 'exa-mark' }, h(Mark, null)),
+          h('div', { className: 'exa-mark' }, h('img', { src: '/exa-plugin/icon.png', alt: '', width: 42, height: 42 })),
           h('div', { className: 'exa-head-text' }, h('h2', null, t('title')), h('p', { className: 'exa-sub' }, t('subtitle'))),
           h('span', { className: 'exa-chip on' }, `${modeMeta[current] ? modeMeta[current].title : current} · ${upstreamText}`),
         ),
@@ -713,11 +762,45 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'exa-banner' },
-          h('span', null, t('routingLabel')),
-          h('span', { className: 'exa-pipe' }, 'web_search → exa'),
-          h('span', { className: 'exa-pipe' }, 'web_fetch → exa'),
-          h('span', { style: { marginLeft: 'auto' } }, `${t('activeTools')}: ${state.active.join(', ') || '—'}`),
+          h(
+            'div',
+            { className: 'exa-banner-row' },
+            h('span', null, t('routingLabel')),
+            h('span', { className: 'exa-pipe' }, 'web_search → exa'),
+            h('span', { className: 'exa-pipe' }, 'web_fetch → exa'),
+          ),
+          h('span', { className: 'exa-banner-tools' }, `${t('activeTools')}: ${state.active.join(', ') || '—'}`),
         ),
+
+        state.update && state.update.available && !state.update.dismissed
+          ? h(
+              'section',
+              { className: 'exa-card exa-update' },
+              h(
+                'div',
+                { className: 'exa-row' },
+                h('span', { className: 'exa-update-label' }, t('updateAvailable')),
+                h('span', { className: 'exa-update-version' }, `v${state.update.current} → v${state.update.latest}`),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'exa-btn primary',
+                    onClick: applyUpdate,
+                    disabled: Boolean(busy) || Boolean(updateBusy) || !state.update.canInstall || state.update.linked,
+                    style: { marginLeft: 'auto' },
+                  },
+                  updateBusy === 'apply' ? t('updateApplying') : t('updateAction'),
+                ),
+                h(
+                  'button',
+                  { type: 'button', className: 'exa-btn ghost', onClick: dismissUpdate, disabled: Boolean(busy) || Boolean(updateBusy) },
+                  t('updateDismiss'),
+                ),
+              ),
+              h('p', { className: 'exa-hint' }, `${t('updateHint')}${state.update.linked ? ` ${t('updateLinkedHint')}` : ''}`),
+            )
+          : null,
 
         h(
           'div',
@@ -729,10 +812,9 @@ window.__ModuleLoader__.load({
           ),
           h(
             'button',
-            { type: 'button', className: 'exa-btn ghost', onClick: copyDiagnostics, disabled: Boolean(busy) },
-            t('diagnosticsAction'),
+            { type: 'button', className: 'exa-btn ghost', onClick: checkUpdate, disabled: Boolean(busy) || Boolean(updateBusy) },
+            updateBusy === 'check' ? t('updateChecking') : t('updateCheckAction'),
           ),
-          diagNotice ? h('span', { className: 'exa-hint' }, diagNotice) : null,
           h('span', { className: 'exa-hint' }, t('testHint')),
           testResult
             ? h(
@@ -742,6 +824,10 @@ window.__ModuleLoader__.load({
                   ? `${t('testOk')} · ${testResult.ms}ms${testResult.sample && testResult.sample.title ? ` · ${testResult.sample.title}` : ''}`
                   : `${t('testFail')} · ${testResult.error || ''}`,
               )
+            : null,
+          updateNotice ? h('span', { className: 'exa-hint' }, updateNotice) : null,
+          state.update && state.update.checkedAt && !state.update.available && !state.update.error
+            ? h('span', { className: 'exa-hint' }, `${t('updateLatest')} · v${state.update.current}`)
             : null,
         ),
 
@@ -979,6 +1065,7 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'exa-foot' },
+          h('span', null, `v${state.update ? state.update.current : ''}`),
           h('span', null, `${t('upstreamLabel')}: ${upstreamText} · ${(state.upstream.tools || []).join(', ') || '—'}`),
           h('span', null, `MCP: ${state.endpoints.mcp}`),
           state.cost
@@ -986,6 +1073,59 @@ window.__ModuleLoader__.load({
             : null,
         ),
       )
+    }
+
+    /**
+     * The settings panel draws its nav glyph from a fixed id map inside the shell
+     * (unknown ids fall back to a gear), and `settings.section` has no icon field.
+     * Paint our icon beside the label instead: hide the shell svg and insert an
+     * image, leaving every node React owns in place. A changed shell makes this a
+     * no-op rather than a breaking edit.
+     */
+    function navIconPatch(t) {
+      if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
+      const marked = new WeakMap()
+      let timer = 0
+      const paint = () => {
+        timer = 0
+        const label = t('navLabel')
+        const buttons = document.querySelectorAll('button')
+        for (const button of buttons) {
+          if (marked.has(button)) continue
+          const children = Array.from(button.children)
+          const span = children.find((node) => node.tagName === 'SPAN' && node.textContent === label)
+          if (!span) continue
+          const svg = children.find((node) => node.tagName.toLowerCase() === 'svg')
+          if (!svg) continue
+          const img = document.createElement('img')
+          img.src = '/exa-plugin/icon.png'
+          img.alt = ''
+          img.width = 16
+          img.height = 16
+          img.style.borderRadius = '4px'
+          img.style.flex = 'none'
+          svg.style.display = 'none'
+          button.insertBefore(img, svg)
+          marked.set(button, { img, svg })
+        }
+      }
+      const schedule = () => {
+        if (timer) return
+        timer = window.setTimeout(paint, 250)
+      }
+      const observer = new MutationObserver(schedule)
+      observer.observe(document.body, { childList: true, subtree: true })
+      schedule()
+      return () => {
+        observer.disconnect()
+        if (timer) window.clearTimeout(timer)
+        for (const button of document.querySelectorAll('button')) {
+          const state = marked.get(button)
+          if (!state) continue
+          state.img.remove()
+          state.svg.style.display = ''
+        }
+      }
     }
 
     return {
@@ -1004,6 +1144,7 @@ window.__ModuleLoader__.load({
             ExaPanel,
           ),
         )
+        ctx.effect(() => navIconPatch(t), 'exa-search: settings nav icon')
       },
     }
   },

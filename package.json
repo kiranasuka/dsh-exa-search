@@ -1,7 +1,8 @@
 {
   "name": "dsh-exa-search",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Exa-powered web search for DeepSeek Harness: keyless free tier, your own API key, or a signed-in Exa account, with a settings page that shows which Exa tools each mode exposes.",
+  "icon": "./icon.png",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -21,14 +22,14 @@
     ".": "./index.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.png"
   },
   "files": [
     "index.js",
     "client.js",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg",
+    "icon.png",
     "README.md",
     "README.en.md",
     "LICENSE",

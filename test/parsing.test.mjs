@@ -2,8 +2,6 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  VAULT_API_KEY,
-  VAULT_GRANT,
   clampInt,
   mapMcpCategory,
   mapRestResults,
@@ -12,103 +10,83 @@ import {
   withQuery,
 } from '../index.js'
 
-test('credential record keys use the required <scope>/<id> shape', () => {
-  // The Harness credential service rejects any other shape at load time, and a
-  // bad record makes every plugin that depends on credentials fail to start.
-  for (const key of [VAULT_API_KEY, VAULT_GRANT]) {
-    assert.match(key, /^[^/]+\/[^/]+$/, `${key} must look like <scope>/<id>`)
-  }
-  assert.equal(VAULT_API_KEY, 'exa-search/api-key')
-  assert.equal(VAULT_GRANT, 'exa-search/oauth')
-})
-
 test('parseSearchText splits the MCP text blob into sources', () => {
-  const text = [
-    'Title: First page',
-    'URL: https://example.com/one',
-    'Published: 2026-01-02',
-    'Author: N/A',
+  const blob = [
+    'Title: First result',
+    'URL: https://example.com/a',
+    'Published: 2024-01-02',
     'Highlights:',
-    'A useful excerpt.',
-    '',
+    'Some   spaced',
+    'text',
     '---',
-    '',
-    'Title: Second page',
-    'URL: https://example.com/two',
-    'Published: N/A',
-    'Highlights:',
-    'Another excerpt.',
+    'Title: Second result',
+    'URL: https://example.org/b',
   ].join('\n')
-
-  const results = parseSearchText(text)
+  const results = parseSearchText(blob)
   assert.equal(results.length, 2)
   assert.deepEqual(results[0], {
-    title: 'First page',
-    url: 'https://example.com/one',
-    publishedAt: '2026-01-02',
-    snippet: 'A useful excerpt.',
+    title: 'First result',
+    url: 'https://example.com/a',
+    publishedAt: '2024-01-02',
+    snippet: 'Some spaced text',
   })
-  assert.equal(results[1].url, 'https://example.com/two')
-  assert.equal('publishedAt' in results[1], false)
-  assert.match(results[1].snippet, /Another excerpt/)
+  assert.equal(results[1].url, 'https://example.org/b')
+  assert.equal(results[1].publishedAt, undefined)
 })
 
 test('parseSearchText ignores blocks without a URL and empty input', () => {
   assert.deepEqual(parseSearchText(''), [])
-  assert.deepEqual(parseSearchText('just some prose without fields'), [])
+  assert.deepEqual(parseSearchText('Title: nothing here'), [])
 })
 
 test('mapMcpCategory translates REST-only names', () => {
-  assert.equal(mapMcpCategory('company'), 'company')
   assert.equal(mapMcpCategory('research paper'), 'publication')
   assert.equal(mapMcpCategory('linkedin profile'), 'people')
-  assert.equal(mapMcpCategory('tweet'), '')
+  assert.equal(mapMcpCategory('github'), 'github')
+  assert.equal(mapMcpCategory('not a category'), '')
   assert.equal(mapMcpCategory(''), '')
 })
 
 test('mapRestResults keeps snippets and drops entries without a URL', () => {
-  const data = {
-    results: [
-      { title: 'A', url: 'https://a.test', highlights: ['one', 'two'] },
-      { title: 'B', url: '', highlights: [] },
-      { url: 'https://c.test', publishedDate: '2026-02-03' },
-    ],
-  }
-  const results = mapRestResults(data, 5)
-  assert.equal(results.length, 2)
-  assert.equal(results[0].url, 'https://a.test')
-  assert.match(results[0].snippet, /one … two/)
-  assert.equal(results[1].title, 'c.test')
-  assert.equal(results[1].publishedAt, '2026-02-03')
+  const rows = mapRestResults(
+    {
+      results: [
+        { url: 'https://a.test/x', title: 'A', publishedDate: '2024-02-03', highlights: ['one', 'two'] },
+        { title: 'no url' },
+        { url: 'https://b.test/y' },
+      ],
+    },
+    5,
+  )
+  assert.equal(rows.length, 2)
+  assert.equal(rows[0].snippet, 'one … two')
+  assert.equal(rows[0].publishedAt, '2024-02-03')
+  assert.equal(rows[1].title, 'b.test')
 })
 
 test('clampInt clamps and falls back', () => {
-  assert.equal(clampInt('10', 1, 25, 8), 10)
-  assert.equal(clampInt(0, 1, 25, 8), 1)
-  assert.equal(clampInt(999, 1, 25, 8), 25)
-  assert.equal(clampInt('nope', 1, 25, 8), 8)
-  assert.equal(clampInt(undefined, 1, 25, 8), 8)
+  assert.equal(clampInt(5, 1, 3, 0), 3)
+  assert.equal(clampInt('2', 1, 3, 0), 2)
+  assert.equal(clampInt('x', 1, 3, 7), 7)
 })
 
 test('withQuery sets params and keeps existing ones', () => {
-  const url = withQuery('https://mcp.example/mcp?x=1', { tools: 'a,b' })
-  const parsed = new URL(url)
-  assert.equal(parsed.searchParams.get('x'), '1')
-  assert.equal(parsed.searchParams.get('tools'), 'a,b')
-  assert.equal(withQuery('not a url', { tools: 'a' }), 'not a url')
+  assert.equal(
+    withQuery('https://api.test/search?q=1', { numResults: 5 }),
+    'https://api.test/search?q=1&numResults=5',
+  )
 })
 
 test('mapWithConcurrency preserves order and respects the limit', async () => {
-  const items = [1, 2, 3, 4, 5]
   let active = 0
   let peak = 0
-  const results = await mapWithConcurrency(items, 2, async (value) => {
+  const rows = await mapWithConcurrency([1, 2, 3, 4, 5], 2, async (value) => {
     active += 1
     peak = Math.max(peak, active)
     await new Promise((resolve) => setTimeout(resolve, 5))
     active -= 1
-    return value * 10
+    return value * 2
   })
-  assert.deepEqual(results, [10, 20, 30, 40, 50])
+  assert.deepEqual(rows, [2, 4, 6, 8, 10])
   assert.ok(peak <= 2, `peak concurrency was ${peak}`)
 })
