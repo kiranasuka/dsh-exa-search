@@ -143,3 +143,7 @@ Team Management、Webhooks / Events、Imports 属于账号与事件投递的底�
 ## 卸载
 
 `dsh plugin remove dsh-exa-search`。卸载后 `web` 行恢复由下层 bundle 决定。
+
+## 发布维护
+
+维护者发布新版本的方法见 [发布维护指南](https://github.com/kiranasuka/dsh-exa-search/blob/main/RELEASING.md)：推送版本标签后自动测试、打包并创建 GitHub Release。

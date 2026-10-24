@@ -140,3 +140,7 @@ Team management, webhooks and events, imports and Websets enrichments are accoun
 ## Uninstall
 
 `dsh plugin remove dsh-exa-search`. After removal, the `web` row is decided by the underlying bundles again.
+
+## Release maintenance
+
+See the [release maintenance guide](https://github.com/kiranasuka/dsh-exa-search/blob/main/RELEASING.md) for the tag-triggered workflow that tests, packages and publishes GitHub Releases.
